@@ -1,7 +1,7 @@
 <?php
 /*
 Plugin Name:  Automated Link Checker
-Plugin URI:   https://bitbucket.org/stormbox/automated-link-checker/src
+Plugin URI:   https://github.com/westcoastdigital/Automated-Link-Checker
 Description:  Automatically checks for broken internal and external links, images and PDFs.
 Version:      1.0.1
 Author:       Jon Mather
