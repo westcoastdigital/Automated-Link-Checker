@@ -25,7 +25,7 @@ In Admin -> Broken Links is a table of all broken links with the following colum
 - **Post URL** - The url to the post/page the broken link is on (opens in new tab)
 - **TImestamp** - The timestamp for when the link was logged
 
-![Broken Links Page](table-screenshot.png SBroken Links Page")
+![Broken Links Page](table-screenshot.png "Broken Links Page")
 
 ## Manually Running
 To manuall run the cron you will need to use a plugin like [WP Crontrol](https://wordpress.org/plugins/wp-crontrol/). Then you can search for the alc_check_broken_links cron and select Run Now
