@@ -16,7 +16,7 @@ In Admin -> Broken Links -> Settings you can set the following options
 - **Notification Email Address** - set the email address to send notifications to (default is admin email)
 - **Skip URLs** - option to set urls you do not want logged, handy for urls behind logins or just do not want to worry about
 
-![Settings Page](settings-screenshot.ong "Settings Page")
+![Settings Page](settings-screenshot.png "Settings Page")
 
 ## Viewing
 In Admin -> Broken Links is a table of all broken links with the following columns
@@ -25,7 +25,7 @@ In Admin -> Broken Links is a table of all broken links with the following colum
 - **Post URL** - The url to the post/page the broken link is on (opens in new tab)
 - **TImestamp** - The timestamp for when the link was logged
 
-![Broken Links Page](table-screenshot.ong "SBroken Links Page")
+![Broken Links Page](table-screenshot.png SBroken Links Page")
 
 ## Manually Running
 To manuall run the cron you will need to use a plugin like [WP Crontrol](https://wordpress.org/plugins/wp-crontrol/). Then you can search for the alc_check_broken_links cron and select Run Now
