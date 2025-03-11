@@ -13,6 +13,7 @@ The cron created is called alc_check_broken_links.
 In Admin -> Broken Links -> Settings you can set the following options
 
 - **Cron Time Interval** - set the frequency to run the link check (default is 1 Daily)
+- **Run at Specific Time** - set the server time for the cron to run so can run outside of busy hours
 - **Notification Email Address** - set the email address to send notifications to (default is admin email)
 - **Skip URLs** - option to set urls you do not want logged, handy for urls behind logins or just do not want to worry about
 
