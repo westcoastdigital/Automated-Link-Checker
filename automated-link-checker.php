@@ -333,20 +333,34 @@ function alc_display_broken_links_page() {
     // Query for all broken links
     $table_name = $wpdb->prefix . 'alc_broken_links';
     $broken_links = $wpdb->get_results( "SELECT * FROM $table_name" );
+    $broken_link_count = count($broken_links);
 
-    echo '<div class="wrap"><h2>Broken Links</h2><table class="widefat">';
+    echo '<div class="wrap">';
+    echo '<h2>Broken Links</h2>';
+    
+    echo '<div class="tablenav top">';
+    echo '<div class="alignleft actions">';
+    echo '<p>Found <span id="broken_link_count">' . $broken_link_count . '</span> Links</p>';
+    echo '</div>';
+    echo '<div class="tablenav-pages">';
+    echo '<button class="button" id="download_broken_links">Download CSV</button>';
+    echo '</div>';
+    echo '</div>'; // Close tablenav
+    
+    echo '<table class="widefat">';
     echo '<thead><tr><th>Post ID</th><th>URL</th><th>Post URL</th><th>Timestamp</th></tr></thead><tbody>';
 
     foreach ( $broken_links as $link ) {
         echo '<tr>';
         echo '<td>' . esc_html( $link->post_id ) . '</td>';
-        echo '<td>' . esc_html( $link->url ) . '</td>';
-        echo '<td><a href="' . esc_url( $link->post_url ) . '" target="_blank">' . esc_html( $link->post_url ) . '</a></td>';
+        echo '<td>' . esc_html( $link->url ) . '&nbsp;<a href="" class="delete_link" data-link="' . esc_html( $link->url ) . '" data-postid="' . esc_html( $link->post_id ) . '"><span style="color:#b20022;" class="dashicons dashicons-trash"></span></a></td>';
+        echo '<td><a href="' . esc_url( $link->post_url ) . '" target="_blank">' . esc_html( $link->post_url ) . '</a>&nbsp;<a href="' . get_edit_post_link($link->post_id) . '"><span class="dashicons dashicons-edit"></span></a></td>';
         echo '<td>' . esc_html( $link->timestamp ) . '</td>';
         echo '</tr>';
     }
 
-    echo '</tbody></table></div>';
+    echo '</tbody></table>';
+    echo '</div>'; // Close wrap div
 }
 
 // Add Settings submenu under the plugin
@@ -529,4 +543,130 @@ function alc_send_broken_link_email_notification( $broken_links_count ) {
 
     // Send the email
     wp_mail( $notification_email, $subject, $message );
+}
+
+// Enqueue JavaScript for the admin page
+add_action('admin_enqueue_scripts', 'alc_admin_scripts');
+
+function alc_admin_scripts($hook) {
+    // Only load on our plugin's page
+    if ($hook != 'toplevel_page_alc_broken_links') {
+        return;
+    }
+    
+    // Register and enqueue our JavaScript
+    wp_enqueue_script('alc-admin-js', ALC_PLUGIN_URL . 'js/admin.js', array('jquery'), '1.0.0', true);
+    
+    // Pass AJAX URL and nonce to JavaScript
+    wp_localize_script('alc-admin-js', 'alcAjax', array(
+        'ajaxurl' => admin_url('admin-ajax.php'),
+        'nonce' => wp_create_nonce('alc_delete_link_nonce')
+    ));
+}
+
+// AJAX handler for link deletion
+add_action('wp_ajax_alc_delete_link', 'alc_delete_link_ajax_handler');
+
+function alc_delete_link_ajax_handler() {
+    // Verify nonce
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'alc_delete_link_nonce')) {
+        wp_send_json_error(array('message' => 'Security check failed.'));
+    }
+    
+    // Get data from request
+    $url = isset($_POST['url']) ? sanitize_text_field($_POST['url']) : '';
+    $post_id = isset($_POST['post_id']) ? intval($_POST['post_id']) : 0;
+    
+    // Validate inputs
+    if (empty($url) || empty($post_id)) {
+        wp_send_json_error(array('message' => 'Missing required parameters.'));
+    }
+    
+    // Delete the link from post content or meta
+    $result = alc_delete_link_from_post($post_id, $url);
+    
+    if ($result) {
+        // Delete the entry from the database
+        alc_delete_link_from_db($post_id, $url);
+        wp_send_json_success(array('message' => 'Link removed successfully!'));
+    } else {
+        wp_send_json_error(array('message' => 'Failed to remove the link from content.'));
+    }
+}
+
+// Function to delete link from database
+function alc_delete_link_from_db($post_id, $url) {
+    global $wpdb;
+    
+    $table_name = $wpdb->prefix . 'alc_broken_links';
+    
+    $wpdb->delete(
+        $table_name,
+        array(
+            'post_id' => $post_id,
+            'url' => $url
+        )
+    );
+}
+
+// Function to find and remove a link from post content or meta
+function alc_delete_link_from_post($post_id, $url) {
+    // Get the post
+    $post = get_post($post_id);
+    if (!$post) {
+        return false;
+    }
+    
+    $success = false;
+    
+    // Check if the link is in post content
+    if (strpos($post->post_content, $url) !== false) {
+        // Remove the link from post content
+        $new_content = alc_remove_url_from_content($post->post_content, $url);
+        
+        // Update the post
+        $update_args = array(
+            'ID' => $post_id,
+            'post_content' => $new_content
+        );
+        
+        wp_update_post($update_args);
+        $success = true;
+    }
+    
+    // Check if the link is in post meta
+    $meta_fields = get_post_meta($post_id);
+    foreach ($meta_fields as $key => $values) {
+        foreach ($values as $index => $value) {
+            if (is_string($value) && strpos($value, $url) !== false) {
+                // Remove the link from meta value
+                $new_value = alc_remove_url_from_content($value, $url);
+                
+                // Update the meta value
+                update_post_meta($post_id, $key, $new_value, $value);
+                $success = true;
+            }
+        }
+    }
+    
+    return $success;
+}
+
+// Helper function to remove a URL from content
+function alc_remove_url_from_content($content, $url) {
+    // Escape special characters for use in regex
+    $escaped_url = preg_quote($url, '/');
+    
+    // First attempt: remove the URL if it's in an <a> tag
+    $pattern = '/<a\s+[^>]*href\s*=\s*["\']' . $escaped_url . '["\'][^>]*>(.*?)<\/a>/i';
+    $content = preg_replace($pattern, '$1', $content);
+    
+    // Second attempt: remove the URL if it's in an <img> tag
+    $pattern = '/<img\s+[^>]*src\s*=\s*["\']' . $escaped_url . '["\'][^>]*\/?>/i';
+    $content = preg_replace($pattern, '', $content);
+    
+    // Third attempt: remove just the raw URL
+    $content = str_replace($url, '', $content);
+    
+    return $content;
 }
