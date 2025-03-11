@@ -410,7 +410,7 @@ function alc_display_settings_page() {
                             ?>
                         </select>
                         <p class="description">Set the time when the link checker should run (server time). Only applies to daily, weekly, monthly, or yearly intervals.</p>
-                        <p class="current-time">Current Server Time: <span id="server_time"><?= date('h:i:s a') ?></span></p>
+                        <p class="current-time" style="display:inline-block;background:#bada55;color:#fff;padding:5px 10px;min-width:250px;text-align:center;">Current Server Time: <span id="server_time"><?= date('h:i:s a') ?></span></p>
                     </td>
                 </tr>
                 <!-- Custom Email Setting -->
