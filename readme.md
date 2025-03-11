@@ -17,7 +17,7 @@ In Admin -> Broken Links -> Settings you can set the following options
 - **Notification Email Address** - set the email address to send notifications to (default is admin email)
 - **Skip URLs** - option to set urls you do not want logged, handy for urls behind logins or just do not want to worry about
 
-![Settings Page](settings-screenshot.png "Settings Page")
+![Settings Page](settings-screenshot-time.png "Settings Page")
 
 ## Viewing
 In Admin -> Broken Links is a table of all broken links with the following columns
