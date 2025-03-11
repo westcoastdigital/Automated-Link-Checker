@@ -25,19 +25,41 @@ register_activation_hook( __FILE__, 'alc_activate_plugin' );
 
 // Plugin activation function
 function alc_activate_plugin() {
-    $interval_value = get_option( 'alc_cron_interval_value', 1 );
-    $interval_unit = get_option( 'alc_cron_interval_unit', 'daily' );
+    $interval_value = get_option('alc_cron_interval_value', 1);
+    $interval_unit = get_option('alc_cron_interval_unit', 'daily');
+    $run_hour = get_option('alc_run_hour', '00');
+    $run_minute = get_option('alc_run_minute', '00');
 
     // Convert the user-selected interval into a WordPress-supported cron schedule
-    $cron_schedule = alc_get_cron_schedule_name( $interval_value, $interval_unit );
+    $cron_schedule = alc_get_cron_schedule_name($interval_value, $interval_unit);
 
     // Remove the old scheduled event if it exists
-    if ( wp_next_scheduled( 'alc_check_broken_links' ) ) {
-        wp_clear_scheduled_hook( 'alc_check_broken_links' );
+    if (wp_next_scheduled('alc_check_broken_links')) {
+        wp_clear_scheduled_hook('alc_check_broken_links');
+    }
+
+    // Set the first run time
+    $first_run = time(); // Default to now
+    
+    // If using daily/weekly/monthly/yearly schedule, set specific time
+    if (in_array($interval_unit, ['daily', 'weekly', 'monthly', 'yearly'])) {
+        // Get current date
+        $current_date = date('Y-m-d');
+        $current_time = time();
+        
+        // Create timestamp for today at the specified time
+        $target_time = strtotime("$current_date $run_hour:$run_minute:00");
+        
+        // If that time already passed today, schedule for tomorrow
+        if ($target_time <= $current_time) {
+            $target_time = strtotime("tomorrow $run_hour:$run_minute:00");
+        }
+        
+        $first_run = $target_time;
     }
 
     // Schedule the new event with the custom interval
-    wp_schedule_event( time(), $cron_schedule, 'alc_check_broken_links' );
+    wp_schedule_event($first_run, $cron_schedule, 'alc_check_broken_links');
 }
 
 // Map user input to a WordPress cron schedule
@@ -366,6 +388,31 @@ function alc_display_settings_page() {
                         </select>
                     </td>
                 </tr>
+                <!-- Run at specific time option -->
+                <tr valign="top">
+                    <th scope="row">Run at Specific Time</th>
+                    <td>
+                        <select name="alc_run_hour">
+                            <?php
+                            for ($i = 0; $i < 24; $i++) {
+                                $hour = sprintf('%02d', $i);
+                                echo '<option value="' . $hour . '" ' . selected(get_option('alc_run_hour', 00), $hour, false) . '>' . $hour . '</option>';
+                            }
+                            ?>
+                        </select>
+                        :
+                        <select name="alc_run_minute">
+                            <?php
+                            for ($i = 0; $i < 60; $i += 5) {
+                                $minute = sprintf('%02d', $i);
+                                echo '<option value="' . $minute . '" ' . selected(get_option('alc_run_minute', 00), $minute, false) . '>' . $minute . '</option>';
+                            }
+                            ?>
+                        </select>
+                        <p class="description">Set the time when the link checker should run (server time). Only applies to daily, weekly, monthly, or yearly intervals.</p>
+                        <p class="current-time">Current Server Time: <span id="server_time"><?= date('h:i:s a') ?></span></p>
+                    </td>
+                </tr>
                 <!-- Custom Email Setting -->
                 <tr valign="top">
                     <th scope="row">Notification Email Address</th>
@@ -387,6 +434,30 @@ function alc_display_settings_page() {
             <?php submit_button(); ?>
         </form>
     </div>
+    <script type="text/javascript">
+    function updateServerTime() {
+        var serverTime = document.getElementById('server_time');
+        var time = new Date('<?php echo date('Y-m-d H:i:s'); ?>');
+        
+        setInterval(function() {
+            time.setSeconds(time.getSeconds() + 1);
+            var hours = time.getHours();
+            var minutes = time.getMinutes();
+            var seconds = time.getSeconds();
+            var ampm = hours >= 12 ? 'pm' : 'am';
+            
+            hours = hours % 12;
+            hours = hours ? hours : 12; // the hour '0' should be '12'
+            minutes = minutes < 10 ? '0' + minutes : minutes;
+            seconds = seconds < 10 ? '0' + seconds : seconds;
+            
+            serverTime.textContent = hours + ':' + minutes + ':' + seconds + ' ' + ampm;
+        }, 1000);
+    }
+
+    // Run when the DOM is ready
+    document.addEventListener('DOMContentLoaded', updateServerTime);
+    </script>
     <?php
 }
 
@@ -409,11 +480,34 @@ function alc_register_settings() {
     if ( ! get_option( 'alc_skip_urls' ) ) {
         update_option( 'alc_skip_urls', get_option( 'alc_skip_urls' ) );
     }
+    // set the hour
+    if (!get_option('alc_run_hour')) {
+        update_option('alc_run_hour', '00');
+    }
+    // set the minute
+    if (!get_option('alc_run_minute')) {
+        update_option('alc_run_minute', '00');
+    }
 
     register_setting( 'alc_settings_group', 'alc_cron_interval_value' );
     register_setting( 'alc_settings_group', 'alc_cron_interval_unit' );
     register_setting( 'alc_settings_group', 'alc_notification_email' );
     register_setting( 'alc_settings_group', 'alc_skip_urls' );
+    register_setting('alc_settings_group', 'alc_run_hour');
+    register_setting('alc_settings_group', 'alc_run_minute');
+}
+
+add_action('update_option_alc_run_hour', 'alc_reschedule_cron', 10, 2);
+add_action('update_option_alc_run_minute', 'alc_reschedule_cron', 10, 2);
+add_action('update_option_alc_cron_interval_value', 'alc_reschedule_cron', 10, 2);
+add_action('update_option_alc_cron_interval_unit', 'alc_reschedule_cron', 10, 2);
+
+function alc_reschedule_cron($old_value, $new_value) {
+    // Only reschedule if the value actually changed
+    if ($old_value !== $new_value) {
+        // Call the activation function which handles scheduling
+        alc_activate_plugin();
+    }
 }
 
 // Function to send the broken link email notification
