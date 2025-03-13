@@ -447,6 +447,12 @@ function alc_display_settings_page() {
             </table>
             <?php submit_button(); ?>
         </form>
+        <hr>
+        <h3>Manual Link Check</h3>
+        <p>Click the button below to run a link check immediately without affecting the scheduled cron job.</p>
+        <button id="run_manual_check" class="button button-primary">Run Link Check Now</button>
+        <span id="manual_check_status" style="margin-left: 10px; display: none;"></span>
+        <span id="view_links"></span>
     </div>
     <script type="text/javascript">
     function updateServerTime() {
@@ -550,7 +556,7 @@ add_action('admin_enqueue_scripts', 'alc_admin_scripts');
 
 function alc_admin_scripts($hook) {
     // Only load on our plugin's page
-    if ($hook != 'toplevel_page_alc_broken_links') {
+    if ($hook != 'toplevel_page_alc_broken_links' && $hook != 'broken-links_page_alc_link_checker_settings') {
         return;
     }
     
@@ -560,7 +566,8 @@ function alc_admin_scripts($hook) {
     // Pass AJAX URL and nonce to JavaScript
     wp_localize_script('alc-admin-js', 'alcAjax', array(
         'ajaxurl' => admin_url('admin-ajax.php'),
-        'nonce' => wp_create_nonce('alc_delete_link_nonce')
+        'nonce' => wp_create_nonce('alc_delete_link_nonce'),
+        'manualCheckNonce' => wp_create_nonce('alc_manual_check_nonce')
     ));
 }
 
@@ -669,4 +676,26 @@ function alc_remove_url_from_content($content, $url) {
     $content = str_replace($url, '', $content);
     
     return $content;
+}
+
+add_action('wp_ajax_alc_run_manual_check', 'alc_run_manual_check_ajax_handler');
+
+function alc_run_manual_check_ajax_handler() {
+    // Verify nonce
+    if (!isset($_POST['nonce']) || !wp_verify_nonce($_POST['nonce'], 'alc_manual_check_nonce')) {
+        wp_send_json_error(array('message' => 'Security check failed.'));
+    }
+    
+    // Run the link check function
+    alc_check_broken_links_function();
+    
+    // Count the broken links
+    global $wpdb;
+    $table_name = $wpdb->prefix . 'alc_broken_links';
+    $broken_links_count = $wpdb->get_var("SELECT COUNT(*) FROM $table_name");
+    
+    wp_send_json_success(array(
+        'message' => 'Link check completed successfully!',
+        'count' => $broken_links_count
+    ));
 }

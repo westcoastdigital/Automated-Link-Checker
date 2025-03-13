@@ -118,4 +118,70 @@ jQuery(document).ready(function($) {
         downloadLink.click();
         document.body.removeChild(downloadLink);
     });
+    
+    // Manual link check functionality
+    $("#run_manual_check").on("click", function(e) {
+        e.preventDefault();
+        
+        var button = $(this);
+        var statusSpan = $('#manual_check_status');
+        
+        // Disable the button and show "Running..." message
+        button.prop('disabled', true);
+        statusSpan.text('Running link check... This may take a few minutes.')
+                 .css({
+                     'color': '#666',
+                     'display': 'inline-block',
+                     'margin-left': '10px',
+                     'font-style': 'italic'
+                 });
+        
+        // Show a spinner
+        var spinner = $('<span class="dashicons dashicons-update-alt" style="animation: rotation 2s infinite linear; margin-left: 5px;"></span>');
+        statusSpan.append(spinner);
+        
+        $.ajax({
+            url: alcAjax.ajaxurl,
+            type: "POST",
+            data: {
+                action: "alc_run_manual_check",
+                nonce: alcAjax.manualCheckNonce
+            },
+            success: function(response) {
+                if (response.success) {
+                    statusSpan.html('Link check completed! Found ' + response.data.count + ' broken links.')
+                             .css({
+                                 'color': '#46b450',
+                                 'font-style': 'normal'
+                             });
+                    
+                    // Re-enable the button after a short delay
+                    setTimeout(function() {
+                        button.prop('disabled', false);
+                    }, 2000);
+                    
+                    // If we're on the settings page, show a message with a link to the broken links page
+                    if (window.location.href.indexOf('alc_link_checker_settings') > -1 && response.data.count > 0) {
+                        var viewLinksMessage = $('<p><a href="admin.php?page=alc_broken_links" class="button button-secondary">View Broken Links</a></p>');
+                        $('#view_links').append(viewLinksMessage);
+                    }
+                } else {
+                    statusSpan.text('Error: ' + response.data.message)
+                             .css({
+                                 'color': '#dc3232',
+                                 'font-style': 'normal'
+                             });
+                    button.prop('disabled', false);
+                }
+            },
+            error: function() {
+                statusSpan.text('An error occurred while processing your request.')
+                         .css({
+                             'color': '#dc3232',
+                             'font-style': 'normal'
+                         });
+                button.prop('disabled', false);
+            }
+        });
+    });
 });
