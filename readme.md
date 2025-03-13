@@ -29,4 +29,6 @@ In Admin -> Broken Links is a table of all broken links with the following colum
 ![Broken Links Page](table-screenshot.png "Broken Links Page")
 
 ## Manually Running
-To manuall run the cron you will need to use a plugin like [WP Crontrol](https://wordpress.org/plugins/wp-crontrol/). Then you can search for the alc_check_broken_links cron and select Run Now
+In Admin -> Broken Links -> Settings you can manually run the cron by clicking Run Link Check Now.
+This takes a few minutes so wait for it to finish running to see if it returns any broken links
+![Broken Manual Cron](settings-run-cron.png "BrokenManual Cron")
